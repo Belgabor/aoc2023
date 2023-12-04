@@ -14,12 +14,13 @@ fn part1(root: &Parsed) {
     println!("Part 1: {}", "TODO");
 }
 
-fn part2(_root: &Parsed) {
+fn part2(root: &Parsed) {
+
     println!("Part 2: {}", "TODO");
 }
 
 fn main() {
-    let files = vec!["sample.txt", "sample2.txt" , "input.txt" ];
+    let files = vec!["sample.txt", /*"sample2.txt" ,*/ "input.txt" ];
     for file in files {
         println!("Reading {}", file);
         let content = fs::read_to_string(file).expect("Cannot read file");
