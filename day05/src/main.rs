@@ -1,6 +1,11 @@
 use std::cmp::max;
 use std::fs;
 
+/**
+ * Note for the future: Rust has a Range type
+ */
+
+
 type Parsed = Almanac;
 
 #[derive(Debug, Clone)]
