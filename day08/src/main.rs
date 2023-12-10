@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs;
 use std::ops::Range;
 
@@ -56,7 +56,19 @@ fn part1(root: &Parsed) {
 #[derive(Debug)]
 struct Loop {
     start: String,
-    range: Range<i32>,
+    range: Range<u32>,
+    length: u64,
+}
+
+fn gcd(mut n: u128, mut m: u128) -> u128 {
+    assert!(n != 0 && m != 0);
+    while m != 0 {
+        if m < n {
+            std::mem::swap(&mut m, &mut n);
+        }
+        m %= n;
+    }
+    n
 }
 
 fn part2(root: &Parsed) {
@@ -76,7 +88,7 @@ fn part2(root: &Parsed) {
         let mut current_position = position.clone();
         let mut current = root.directions.iter();
         let mut history = HashMap::new();
-        let mut steps: i32 = 0;
+        let mut steps: u32 = 0;
         loop {
             steps += 1;
             let direction = *current.next().or_else(|| {
@@ -91,11 +103,12 @@ fn part2(root: &Parsed) {
             };
             if history.contains_key(&next) {
                 let start = history.get(&next).unwrap();
-                loops.push(Loop { start: position.clone(), range: *start..steps});
+                let range = *start..steps;
+                loops.push(Loop { start: position.clone(), length: range.len() as u64, range});
                 println!("Loop detected: {}", current_position);
                 break;
             }
-            if (current_position.ends_with("Z")) {
+            if current_position.ends_with("Z") {
                 println!("No Loop: {}", current_position);
             }
             current_position = next;
@@ -104,26 +117,10 @@ fn part2(root: &Parsed) {
     }
     println!("Starts: {:?} {:?}", loops, loops.iter().map(|l| l.range.len()).collect::<Vec<_>>());
 
-    let mut step = 1;
-    let count = loops.len();
-    'steps: loop {
-        step += 1;
-        let mut on_end = 0;
-        for l in loops.iter() {
-            let rest: i32 = step - l.range.start;
-            if rest < 0 {
-                continue 'steps;
-            }
-            if rest % (l.range.len() as i32) == 0 {
-                on_end += 1;
-            }
-        }
-        if on_end == count {
-            break;
-        }
-    }
+    // 13289612809129
+    let x = loops.iter().map(|l| l.length as u128).reduce(|a, b| a *b / gcd(a, b)).unwrap();
 
-    println!("Part 2: {}", step);
+    println!("Part 2: {}", x);
 }
 
 fn main() {
@@ -140,7 +137,7 @@ fn main() {
     {
         println!("---");
         println!("Part 2");
-        let files = vec!["sample2.txt"/*, "input.txt"*/];
+        let files = vec!["sample2.txt", "input.txt"];
         for file in files {
             println!("Reading {}", file);
             let content = fs::read_to_string(file).expect("Cannot read file");
