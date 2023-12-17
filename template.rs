@@ -1,6 +1,7 @@
 use std::fs;
 
 type Parsed = String;
+type Int = usize;
 
 fn parse(content: &String) -> Parsed {
     for line in content.split("\n") {
