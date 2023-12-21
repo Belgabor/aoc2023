@@ -3,6 +3,7 @@
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use pathfinding::prelude::dijkstra;
 use Direction::{Down, Right, Up};
 use crate::Direction::Left;
 
@@ -80,10 +81,22 @@ impl CostVariant {
         }
 
         if direction == self.from.opposite() {
-            return CostVariant{from: self.from, length: self.length + 1};
+            return CostVariant { from: self.from, length: self.length + 1 };
         }
 
-        CostVariant {from: direction.opposite(), length: 1}
+        CostVariant { from: direction.opposite(), length: 1 }
+    }
+
+    fn can_go_part2(&self, direction: Direction) -> bool {
+        if direction == self.from {
+            return false;
+        }
+
+        if direction == self.from.opposite() {
+            return self.length < 10;
+        }
+
+        self.length >= 4
     }
 }
 
@@ -108,6 +121,21 @@ impl State {
 
         Some(State { coordinate, variant })
     }
+
+    fn next_part2(&self, direction: Direction, width: Int, height: Int) -> Option<Self> {
+        if !self.variant.can_go_part2(direction) {
+            return None;
+        }
+
+        let coordinate = Coordinate(self.coordinate.0 + direction.dx(), self.coordinate.1 + direction.dy());
+        if !coordinate.ok(width, height) {
+            return None;
+        }
+
+        let variant = self.variant.next(direction);
+
+        Some(State { coordinate, variant })
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -115,9 +143,6 @@ struct City {
     heat_loss: Vec<Vec<Int>>,
     width: Int,
     height: Int,
-    visited: HashSet<State>,
-    costs: HashMap<State, Int>,
-    //cost_variants: HashMap<Coordinate, Vec<CostVariant>>,
 }
 
 impl City {
@@ -125,113 +150,59 @@ impl City {
         self.heat_loss[coordinate.1 as usize][coordinate.0 as usize]
     }
 
-    fn handle_direction(&mut self, current_state: &State, current_cost: &Int, direction: Direction) {
-        let next = current_state.next(direction, self.width, self.height);
-        if let Some(next) = next && !self.visited.contains(&next) {
-            let next_cost: Int = current_cost + self.get_loss(&next.coordinate);
-            if !self.costs.contains_key(&next) || next_cost < *self.costs.get(&next).unwrap() {
-                self.costs.insert(next.clone(), next_cost);
-            }
-        }
-        /*
-        let coordinate = Coordinate(current_state.coordinate.0 + direction.dx(), current_state.coordinate.1 + direction.dy());
-        let min_comp = match direction {
-            Up => 0,
-            Right => coordinate.0,
-            Down => coordinate.1,
-            Left => 0,
-        };
 
-        let max_comp = match direction {
-            Up => coordinate.1,
-            Right => self.width - 1,
-            Down => self.height - 1,
-            Left => coordinate.0
-        };
+    fn get_optimal_v2(&self, x: Int, y: Int) -> Int {
+        let result = dijkstra(
+            &State { coordinate: Coordinate(0, 0), variant: CostVariant { from: Left, length: 0 } },
+            |state| {
+                [
+                    state.next(Up, self.width, self.height),
+                    state.next(Right, self.width, self.height),
+                    state.next(Down, self.width, self.height),
+                    state.next(Left, self.width, self.height),
+                ]
+                    .into_iter()
+                    .filter_map(|new_state| {
+                        let new_state = new_state?;
+                        let cost = self.get_loss(&new_state.coordinate);
 
-        if min_comp <= max_comp && !self.visited.contains(&coordinate) && current_variant.can_go(direction) {
-            let next_cost: Int = current_cost + self.get_loss(&coordinate);
-            if !self.costs.contains_key(&coordinate) || next_cost < *self.costs.get(&coordinate).unwrap() {
-                self.costs.insert(coordinate.clone(), next_cost);
-                self.cost_variants.insert(coordinate, vec![current_variant.next(direction)]);
-            } else if next_cost == *self.costs.get(&coordinate).unwrap() {
-                let mut variants = self.cost_variants.get(&coordinate).unwrap().clone();
-                variants.push(current_variant.next(direction));
-                self.cost_variants.insert(coordinate, variants);
-            }
-        }
-         */
+                        Some((new_state, cost))
+                    })
+            },
+            |state| {
+                state.coordinate.0 == x && state.coordinate.1 == y
+            },
+        );
+
+        result.unwrap().1
     }
 
-    fn get_next_state(&self) -> Option<State> {
-        let mut min_cost: Option<Int> = None;
-        let mut found = None;
-        for (coordinate, cost) in self.costs.iter() {
-            if self.visited.contains(coordinate) {
-                continue
-            }
-            if min_cost.is_none() || *cost < min_cost.unwrap() {
-                found = Some(coordinate.clone());
-                min_cost = Some(*cost);
-            }
-        }
+    fn get_optimal_part2(&self, x: Int, y: Int) -> Int {
+        let result = dijkstra(
+            &State { coordinate: Coordinate(0, 0), variant: CostVariant { from: Left, length: 0 } },
+            |state| {
+                [
+                    state.next_part2(Up, self.width, self.height),
+                    state.next_part2(Right, self.width, self.height),
+                    state.next_part2(Down, self.width, self.height),
+                    state.next_part2(Left, self.width, self.height),
+                ]
+                    .into_iter()
+                    .filter_map(|new_state| {
+                        let new_state = new_state?;
+                        let cost = self.get_loss(&new_state.coordinate);
 
-        found
+                        Some((new_state, cost))
+                    })
+            },
+            |state| {
+                state.coordinate.0 == x && state.coordinate.1 == y
+            },
+        );
+
+        result.unwrap().1
     }
 
-    fn run(&mut self) {
-        let mut current_state = State{coordinate: Coordinate(0, 0), variant: CostVariant { from: Left, length: 0 }};
-        self.costs.insert(current_state.clone(), 0);
-
-        loop {
-            let current_cost = self.costs.get(&current_state).unwrap().clone();
-
-            self.handle_direction(&current_state, &current_cost, Up);
-            self.handle_direction(&current_state, &current_cost, Right);
-            self.handle_direction(&current_state, &current_cost, Down);
-            self.handle_direction(&current_state, &current_cost, Left);
-
-            self.visited.insert(current_state.clone());
-
-            if current_state.coordinate.0 == self.width - 1 && current_state.coordinate.1 == self.height - 1 {
-                break;
-            }
-
-            let next = self.get_next_state();
-            if next.is_none() {
-                break;
-            }
-            current_state = next.unwrap();
-        }
-    }
-
-    fn get_optimal(&self, x: Int, y: Int) -> Int {
-        // *self.costs.get(&Coordinate(self.width - 1, self.height -1)).unwrap()
-        let mut minimum = Int::MAX;
-        for state in self.costs.keys().filter(|state| state.coordinate.0 == x && state.coordinate.1 == y) {
-            minimum = min(minimum, *self.costs.get(state).unwrap())
-        }
-
-        minimum
-    }
-
-    /*
-    fn show(&self) {
-        for y in 0..self.height {
-            let mut a = String::new();
-            let mut b = String::new();
-            for x in 0..self.width {
-                a.push_str(&self.heat_loss[y as usize][x as usize].to_string());
-                if let Some(cost) = self.costs.get(&Coordinate(x, y)) {
-                    a.push_str(format!("|{:04} ", cost).as_str());
-                } else {
-                    a.push_str("|----")
-                }
-            }
-            println!("{} {}", a, b);
-        }
-    }
-     */
 }
 
 fn parse(content: &String) -> Parsed {
@@ -252,19 +223,19 @@ fn parse(content: &String) -> Parsed {
 
 fn part1(root: &Parsed) {
     let mut city = root.clone();
-    city.run();
+    //city.run();
     //println!("{:#?}", city);
     //city.show();
 
-    println!("Part 1: {}", city.get_optimal(city.width - 1, city.height - 1));
+    println!("Part 1: {}", city.get_optimal_v2(city.width - 1, city.height - 1));
 }
 
 fn part2(root: &Parsed) {
-    println!("Part 2: {}", "TODO");
+    println!("Part 2: {}", root.get_optimal_part2(root.width - 1, root.height - 1));
 }
 
 fn main() {
-    let files = vec!["sample.txt" /*"sample2.txt" ,*/ ,"input.txt"];
+    let files = vec!["sample.txt" /*"sample2.txt" ,*/, "input.txt"];
     for file in files {
         println!("Reading {}", file);
         let content = fs::read_to_string(file).expect("Cannot read file");
