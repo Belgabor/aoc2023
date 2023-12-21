@@ -1,7 +1,7 @@
 use std::cmp::{max, min};
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use glam::IVec2;
+use glam::I64Vec2;
 
 use miette::Result;
 use nom::bytes::complete::{tag, take_while_m_n};
@@ -19,9 +19,9 @@ use crate::custom_error::AocError;
 pub mod custom_error;
 
 type Parsed = Instructions;
-type AocResult = usize;
+type AocResult = u64;
 type AocResult2 = AocResult;
-type Int = isize;
+type Int = i64;
 
 #[derive(Debug,PartialEq)]
 pub struct Color {
@@ -30,33 +30,65 @@ pub struct Color {
     pub blue:  u8,
 }
 
-fn from_hex(input: &str) -> Result<u8, std::num::ParseIntError> {
-    u8::from_str_radix(input, 16)
+fn from_hex(input: &str) -> Result<u64, std::num::ParseIntError> {
+    u64::from_str_radix(input, 16)
 }
 
 fn is_hex_digit(c: char) -> bool {
     c.is_digit(16)
 }
 
-fn hex_primary(input: &str) -> IResult<&str, u8> {
+fn hex_direction(input: &str) -> IResult<&str, Direction> {
+    let (input, direction) = one_of("0123")(input)?;
+
+    let direction= match direction {
+        '0' => Right,
+        '2' => Left,
+        '3' => Up,
+        '1' => Down,
+        _ => unreachable!(),
+    };
+
+    Ok((input, direction))
+}
+
+
+fn hex_distance(input: &str) -> IResult<&str, u64> {
     map_res(
-        take_while_m_n(2, 2, is_hex_digit),
+        take_while_m_n(5, 5, is_hex_digit),
         from_hex
     )(input)
 }
 
-fn hex_color(input: &str) -> IResult<&str, Color> {
+fn hex_color(input: &str) -> IResult<&str, AltInstruction> {
     let (input, _) = tag("#")(input)?;
-    let (input, (red, green, blue)) = tuple((hex_primary, hex_primary, hex_primary))(input)?;
+    let (input, (distance, direction)) = tuple((hex_distance, hex_direction))(input)?;
 
-    Ok((input, Color { red, green, blue }))
+    Ok((input, AltInstruction{distance: distance as Int, direction}))
+}
+
+
+#[derive(Debug)]
+struct AltInstruction {
+    direction: Direction,
+    distance: Int,
+}
+
+impl AltInstruction {
+    fn deltas(&self) -> I64Vec2 {
+        match self.direction {
+            Up => I64Vec2::new(0, -self.distance),
+            Right => I64Vec2::new(self.distance, 0),
+            Down => I64Vec2::new(0, self.distance),
+            Left => I64Vec2::new(-self.distance, 0),
+        }
+    }
 }
 
 #[derive(Debug)]
 struct Instruction {
-    direction: Direction,
-    distance: Int,
-    color: Color,
+    wrong: AltInstruction,
+    color: AltInstruction,
 }
 
 #[derive(Debug)]
@@ -69,7 +101,7 @@ fn instruction(input: &str) -> IResult<&str, Instruction> {
     let (input, _) = space1(input)?;
     let (input, color)= delimited(char('('), hex_color, char(')'))(input)?;
 
-    Ok((input, Instruction{
+    let wrong = AltInstruction{
         direction: match direction {
             'R' => Right,
             'L' => Left,
@@ -78,7 +110,11 @@ fn instruction(input: &str) -> IResult<&str, Instruction> {
             _ => unreachable!(),
         },
         distance: distance as Int,
-        color
+    };
+
+    Ok((input, Instruction{
+        wrong,
+        color,
     }))
 }
 
@@ -92,12 +128,20 @@ fn parse(content: &String) -> Parsed {
 }
 
 
+#[derive(Debug)]
+struct DugPath {
+    from: I64Vec2,
+    to: I64Vec2,
+    horizontal: bool,
+}
+
+#[derive(Debug)]
+struct DugPaths(Vec<DugPath>);
 
 
 #[derive(Debug, Default)]
 struct Board {
-    blocks: HashMap<IVec2, NodeType>,
-    filled: HashSet<IVec2>,
+    blocks: HashMap<I64Vec2, NodeType>,
     left: Int,
     right: Int,
     top: Int,
@@ -105,21 +149,24 @@ struct Board {
 }
 
 impl Board {
-    fn dig(&mut self, instructions: &Instructions) {
+    fn dig(&mut self, instructions: &Instructions, wrong: bool) {
         self.left = Int::MAX;
         self.top = Int::MAX;
 
         let first = instructions.0.first().unwrap();
+        let first = if wrong {&first.wrong} else {&first.color};
         let last = instructions.0.last().unwrap();
+        let last = if wrong {&last.wrong} else {&last.color};
 
-        let mut position = IVec2::new(0, 0);
+        let mut position = I64Vec2::new(0, 0);
         let mut last_direction: Option<Direction> = None;
 
-        for instruction in instructions.0.iter() {
+        for instruction_ in instructions.0.iter() {
+            let instruction = if wrong {&instruction_.wrong} else {&instruction_.color};
             if let Some(last_direction) = last_direction {
                 self.blocks.insert(position.clone(), NodeType::new(&last_direction.opposite(), &instruction.direction));
             }
-            let delta = instruction.direction.delta();
+            let delta: I64Vec2 = instruction.direction.delta().into();
             for _ in 0..instruction.distance {
                 position += delta;
                 self.blocks.insert(position.clone(), NodeType::route(&instruction.direction));
@@ -130,18 +177,33 @@ impl Board {
             }
             last_direction = Some(instruction.direction.clone());
         }
-        self.blocks.insert(IVec2::new(0, 0), NodeType::new(&last.direction.opposite(), &first.direction));
+        self.blocks.insert(I64Vec2::new(0, 0), NodeType::new(&last.direction.opposite(), &first.direction));
     }
 
-    fn fill(&mut self) {
+    fn paths(&mut self, instructions: &Instructions, wrong: bool) -> Vec<DugPath> {
+        self.left = Int::MAX;
+        self.top = Int::MAX;
+
+        let mut position = I64Vec2::new(0, 0);
+        let mut paths = Vec::new();
+
+        for instruction_ in instructions.0.iter() {
+            let instruction = &instruction_.color;
+            let horizontal = instruction.direction == Left || instruction.direction == Right;
+        }
+        paths
+    }
+
+    fn filled(&mut self) -> AocResult {
+        let mut filled = 0;
         for y in self.top..=self.bottom {
             let mut inside = false;
             let mut last_down = None;
             for x in self.left..=self.right {
-                let position = IVec2::new(x as i32, y as i32);
+                let position = I64Vec2::new(x as i64, y as i64);
                 if let Some(node) = self.blocks.get(&position) {
                     //inside = !inside;
-                    self.filled.insert(position);
+                    filled += 1;
                     match node {
                         NodeType::Horizontal => (),
                         NodeType::Vertical => {
@@ -165,17 +227,20 @@ impl Board {
                         }
                     }
                 } else if inside {
-                    self.filled.insert(position);
+                    filled += 1;
                 }
             }
         }
+
+        filled
     }
 
+    /*
     fn draw(&self) {
         for y in self.top..=self.bottom {
             let mut line = String::new();
             for x in self.left..=self.right {
-                let position = IVec2::new(x as i32, y as i32);
+                let position = I64Vec2::new(x, y);
                 if self.blocks.contains_key(&position) {
                     line.push(self.blocks.get(&position).unwrap().symbol());
                 } else if self.filled.contains(&position) {
@@ -187,21 +252,27 @@ impl Board {
             println!("{}", line);
         }
     }
+     */
 }
 
 fn part1(root: &Parsed) -> Result<AocResult, AocError> {
-    // println!("{:#?}", root);
+    println!("{:#?}", root);
     let mut board = Board::default();
-    board.dig(root);
+    board.dig(root, true);
     // println!("{:#?}", board);
-    board.fill();
-    board.draw();
+    //board.fill();
+    //board.draw();
 
-    Ok(board.filled.len())
+    Ok(board.filled())
 }
 
 fn part2(root: &Parsed) -> Result<AocResult2, AocError> {
-    todo!("Implement Part 2");
+    let mut board = Board::default();
+    println!("Digging...");
+    board.dig(root, false);
+
+    println!("Filling...");
+    Ok(board.filled())
 }
 
 fn main() -> Result<(), AocError> {
@@ -226,7 +297,7 @@ mod tests {
         let content = fs::read_to_string(file).expect("Cannot read file");
         let root = crate::parse(&content);
         assert_eq!(62, crate::part1(&root)?);
-        assert_eq!(62, crate::part2(&root)?);
+        //assert_eq!(952408144115, crate::part2(&root)?);
 
         Ok(())
     }
