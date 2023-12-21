@@ -13,3 +13,4 @@ miette.workspace = true
 thiserror.workspace = true
 nom-supreme.workspace = true
 nom_locate.workspace = true
+tools = { workspace = true }

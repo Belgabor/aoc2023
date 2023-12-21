@@ -217,6 +217,7 @@ dependencies = [
  "nom-supreme",
  "nom_locate",
  "thiserror",
+ "tools",
 ]
 
 [[package]]
@@ -670,6 +671,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "tools"
+version = "0.1.0"
+dependencies = [
+ "glam",
 ]
 
 [[package]]
