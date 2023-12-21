@@ -37,15 +37,17 @@ fn main() -> Result<(), AocError> {
     Ok(())
 }
 
+#[cfg(test)]
 mod tests {
     use std::fs;
 
+    #[test]
     fn tests() -> miette::Result<()> {
         let file = "sample.txt";
         let content = fs::read_to_string(file).expect("Cannot read file");
         let root = crate::parse(&content);
-        asserteq!("", crate::part1(&root)?);
-        asserteq!("", crate::part2(&root)?);
+        assert_eq!("", crate::part1(&root)?);
+        assert_eq!("", crate::part2(&root)?);
 
         Ok(())
     }
