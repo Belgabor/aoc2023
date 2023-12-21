@@ -1,0 +1,15 @@
+[package]
+name = "{{project-name}}"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+glam.workspace = true
+itertools.workspace = true
+nom.workspace = true
+miette.workspace = true
+thiserror.workspace = true
+nom-supreme.workspace = true
+nom_locate.workspace = true
